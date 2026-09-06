@@ -1,0 +1,25 @@
+{
+  "name": "academic-validator-blockchain",
+  "version": "1.0.0",
+  "description": "Smart contracts and Hardhat development network for Academic Document Authenticity Validator",
+  "main": "hardhat.config.js",
+  "scripts": {
+    "node": "hardhat node",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js --network localhost",
+    "test": "hardhat test"
+  },
+  "keywords": [
+    "solidity",
+    "hardhat",
+    "academic-verification",
+    "blockchain",
+    "web3"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.22.0"
+  }
+}

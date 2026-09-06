@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Document Authenticity Validator</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Top Navigation / Header -->
+    <header class="app-header">
+        <div class="container header-container">
+            <div class="logo-group">
+                <div class="logo-icon">
+                    <i data-lucide="shield-check"></i>
+                </div>
+                <div>
+                    <h1 class="app-title">Academic Document Authenticity Validator</h1>
+                    <p class="app-subtitle">A full-stack system that uses OCR to extract academic information, SHA-256 cryptographic hashing to generate document fingerprints, and blockchain-based immutable records to detect document tampering and verify authenticity.</p>
+                </div>
+            </div>
+            <div class="header-status-group">
+                <div id="ocrStatusBadge" class="status-badge loading">
+                    <span class="status-dot"></span>
+                    <span id="ocrStatusText">Checking OCR...</span>
+                </div>
+                <div id="blockchainStatusBadge" class="status-badge blockchain-badge">
+                    <i data-lucide="link-2" class="chain-icon"></i>
+                    <span id="blockchainStatusText">Connecting to Blockchain...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="container main-content">
+        <!-- System Navigation Tabs -->
+        <nav class="portal-nav-tabs">
+            <button type="button" class="tab-btn active" id="tabBtnRegister">
+                <i data-lucide="award"></i> Institution Portal (Issue & Register)
+            </button>
+            <button type="button" class="tab-btn" id="tabBtnVerify">
+                <i data-lucide="shield-check"></i> Public Verifier (Check Authenticity)
+            </button>
+            <button type="button" class="tab-btn" id="tabBtnHistory">
+                <i data-lucide="scroll-text"></i> Audit Ledger & History
+            </button>
+        </nav>
+
+        <!-- Warning Banner for Missing Tesseract (if applicable) -->
+        <div id="tesseractWarningBanner" class="alert-banner warning-banner hidden">
+            <div class="alert-icon"><i data-lucide="alert-triangle"></i></div>
+            <div class="alert-content">
+                <strong>Tesseract OCR binary not detected on this machine</strong>
+                <p>The validator can compute SHA-256 hashes, execute OpenCV image enhancement, and interact with the blockchain smart contract. To enable automatic text reading, install Tesseract via <code class="inline-code">winget install UB-Mannheim.TesseractOCR</code>.</p>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- VIEW 1: INSTITUTION ISSUANCE & REGISTRATION PORTAL                -->
+        <!-- ================================================================= -->
+        <div id="viewRegister" class="portal-view">
+            <!-- Upload & Extraction Card -->
+            <section class="card upload-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i data-lucide="upload-cloud"></i>
+                        <h2>Upload Academic Credential for Issuance</h2>
+                    </div>
+                    <span class="badge badge-primary">Step 1: Ingest & Extract</span>
+                </div>
+
+                <div class="card-body">
+                    <div id="dropZone" class="drop-zone">
+                        <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.webp,.tiff,.bmp" hidden>
+                        <div class="drop-zone-content">
+                            <div class="upload-illustration">
+                                <i data-lucide="file-up"></i>
+                            </div>
+                            <h3>Drag & drop degree certificate or transcript</h3>
+                            <p class="drop-hint">Supports PNG, JPG, JPEG, WEBP, TIFF (Max 16 MB)</p>
+                            <button type="button" id="browseBtn" class="btn btn-secondary">
+                                <i data-lucide="folder-open"></i> Browse Files
+                            </button>
+                        </div>
+
+                        <div id="filePreviewContainer" class="file-preview-container hidden">
+                            <div class="preview-thumbnail-wrap">
+                                <img id="filePreviewThumb" src="" alt="Selected Preview">
+                            </div>
+                            <div class="file-details">
+                                <div class="file-meta">
+                                    <span id="previewFileName" class="file-name">credential.png</span>
+                                    <span id="previewFileSize" class="file-size">1.2 MB</span>
+                                </div>
+                                <button type="button" id="removeFileBtn" class="btn-icon" title="Remove file">
+                                    <i data-lucide="x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-toolbar">
+                        <button type="button" id="validateBtn" class="btn btn-primary" disabled>
+                            <i data-lucide="scan-search"></i> Extract & Preprocess
+                        </button>
+                        <div class="divider-text">OR</div>
+                        <button type="button" id="sampleBtn" class="btn btn-outline">
+                            <i data-lucide="sparkles"></i> Try with Sample Certificate
+                        </button>
+                    </div>
+
+                    <!-- Animated Stepper -->
+                    <div id="processingStepper" class="processing-stepper hidden">
+                        <div class="stepper-track">
+                            <div class="step-item active" id="stepUpload">
+                                <div class="step-circle"><i data-lucide="arrow-up-circle"></i></div>
+                                <span class="step-label">Upload</span>
+                            </div>
+                            <div class="step-connector"></div>
+                            <div class="step-item" id="stepHash">
+                                <div class="step-circle"><i data-lucide="fingerprint"></i></div>
+                                <span class="step-label">SHA-256</span>
+                            </div>
+                            <div class="step-connector"></div>
+                            <div class="step-item" id="stepPreprocess">
+                                <div class="step-circle"><i data-lucide="wand-2"></i></div>
+                                <span class="step-label">OpenCV</span>
+                            </div>
+                            <div class="step-connector"></div>
+                            <div class="step-item" id="stepOCR">
+                                <div class="step-circle"><i data-lucide="file-text"></i></div>
+                                <span class="step-label">OCR</span>
+                            </div>
+                            <div class="step-connector"></div>
+                            <div class="step-item" id="stepExtract">
+                                <div class="step-circle"><i data-lucide="check-circle-2"></i></div>
+                                <span class="step-label">Parsed</span>
+                            </div>
+                        </div>
+                        <div class="stepper-status-msg" id="stepperStatusMsg">Processing document...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results & Blockchain Registration Card -->
+            <section id="resultsSection" class="results-section hidden">
+                <!-- SHA-256 Cryptographic Digest Banner -->
+                <div class="card hash-card">
+                    <div class="hash-card-header">
+                        <div class="hash-title-group">
+                            <div class="hash-icon-badge">
+                                <i data-lucide="binary"></i>
+                            </div>
+                            <div>
+                                <span class="section-label">CRYPTOGRAPHIC INTEGRITY FINGERPRINT</span>
+                                <h3 class="hash-title">SHA-256 Document Hash</h3>
+                            </div>
+                        </div>
+                        <div class="badge badge-success">
+                            <i data-lucide="lock"></i> Ready For Blockchain
+                        </div>
+                    </div>
+
+                    <div class="hash-box">
+                        <code id="sha256Value" class="hash-code">----------------------------------------------------------------</code>
+                        <button type="button" id="copyHashBtn" class="btn btn-copy" title="Copy SHA-256 Hash">
+                            <i data-lucide="copy"></i> Copy Hash
+                        </button>
+                    </div>
+
+                    <div class="hash-explanation">
+                        <i data-lucide="info"></i>
+                        <span>This 256-bit cryptographic digest uniquely locks this exact file. In compliance with student data privacy laws, <b>the actual document is never stored on the public blockchain</b>; only this hash and authorized academic metadata are anchored into the smart contract.</span>
+                    </div>
+                </div>
+
+                <!-- Registration Action Callout -->
+                <div class="card registration-callout-card" id="registrationCallout">
+                    <div class="callout-inner">
+                        <div class="callout-text">
+                            <h3 id="regCalloutTitle">Anchor to Blockchain Smart Contract</h3>
+                            <p id="regCalloutDesc">Register this verified document fingerprint and student metadata onto the immutable Ethereum ledger.</p>
+                        </div>
+                        <div class="callout-actions">
+                            <button type="button" id="btnRegisterOnChain" class="btn btn-blockchain">
+                                <i data-lucide="link"></i> Register on Blockchain
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Transaction Success Banner -->
+                    <div id="txSuccessBanner" class="tx-receipt-banner hidden">
+                        <div class="tx-header">
+                            <div class="tx-badge"><i data-lucide="check-circle-2"></i> ANCHORED ON BLOCKCHAIN</div>
+                            <span id="txTimestamp" class="tx-time">2026-09-06 12:00:00 UTC</span>
+                        </div>
+                        <div class="tx-details-grid">
+                            <div class="tx-detail-item">
+                                <span class="tx-label">Transaction Hash</span>
+                                <code id="txHashValue" class="tx-code">0x0000000000000000000000000000000000000000</code>
+                            </div>
+                            <div class="tx-detail-item">
+                                <span class="tx-label">Block Number</span>
+                                <span id="txBlockValue" class="tx-val">#102</span>
+                            </div>
+                            <div class="tx-detail-item">
+                                <span class="tx-label">Smart Contract</span>
+                                <span id="txContractValue" class="tx-val">0x5FbDB2315678afecb367f032d93F642f64180aa3</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Two-Column Layout: Fields & Visual Preview -->
+                <div class="results-grid">
+                    <!-- Left: Academic Details -->
+                    <div class="card fields-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i data-lucide="graduation-cap"></i>
+                                <h2>Extracted Academic Details</h2>
+                            </div>
+                            <div class="header-badges">
+                                <div id="ocrConfidenceBadge" class="badge badge-outline">
+                                    OCR Conf: 94%
+                                </div>
+                                <div id="completenessBadge" class="badge badge-primary">
+                                    6 / 6 Fields
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="fields-list" id="fieldsList">
+                                <div class="field-row">
+                                    <div class="field-meta">
+                                        <div class="field-icon"><i data-lucide="user"></i></div>
+                                        <span class="field-name">Student Name</span>
+                                    </div>
+                                    <div class="field-val-wrap">
+                                        <span class="field-value" id="field_student_name">-</span>
+                                        <span class="confidence-tag" id="conf_student_name"></span>
+                                    </div>
+                                </div>
+
+                                <div class="field-row">
+                                    <div class="field-meta">
+                                        <div class="field-icon"><i data-lucide="id-card"></i></div>
+                                        <span class="field-name">Student ID / USN</span>
+                                    </div>
+                                    <div class="field-val-wrap">
+                                        <span class="field-value monospace-val" id="field_student_id">-</span>
+                                        <span class="confidence-tag" id="conf_student_id"></span>
+                                    </div>
+                                </div>
+
+                                <div class="field-row">
+                                    <div class="field-meta">
+                                        <div class="field-icon"><i data-lucide="building-2"></i></div>
+                                        <span class="field-name">Institution / University</span>
+                                    </div>
+                                    <div class="field-val-wrap">
+                                        <span class="field-value" id="field_institution">-</span>
+                                        <span class="confidence-tag" id="conf_institution"></span>
+                                    </div>
+                                </div>
+
+                                <div class="field-row">
+                                    <div class="field-meta">
+                                        <div class="field-icon"><i data-lucide="book-open"></i></div>
+                                        <span class="field-name">Course / Degree</span>
+                                    </div>
+                                    <div class="field-val-wrap">
+                                        <span class="field-value" id="field_course">-</span>
+                                        <span class="confidence-tag" id="conf_course"></span>
+                                    </div>
+                                </div>
+
+                                <div class="field-row">
+                                    <div class="field-meta">
+                                        <div class="field-icon"><i data-lucide="award"></i></div>
+                                        <span class="field-name">Marks / CGPA / Grade</span>
+                                    </div>
+                                    <div class="field-val-wrap">
+                                        <span class="field-value highlight-val" id="field_marks">-</span>
+                                        <span class="confidence-tag" id="conf_marks"></span>
+                                    </div>
+                                </div>
+
+                                <div class="field-row">
+                                    <div class="field-meta">
+                                        <div class="field-icon"><i data-lucide="calendar"></i></div>
+                                        <span class="field-name">Date of Issue / Passing</span>
+                                    </div>
+                                    <div class="field-val-wrap">
+                                        <span class="field-value" id="field_date">-</span>
+                                        <span class="confidence-tag" id="conf_date"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Visual Preprocessing Inspection -->
+                    <div class="card visual-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i data-lucide="eye"></i>
+                                <h2>Document Inspection</h2>
+                            </div>
+                            <div class="view-toggles">
+                                <button type="button" class="toggle-btn active" id="toggleOriginal">Original</button>
+                                <button type="button" class="toggle-btn" id="toggleProcessed">OpenCV Enhanced</button>
+                            </div>
+                        </div>
+
+                        <div class="card-body visual-body">
+                            <div class="image-viewer-frame">
+                                <img id="displayImage" src="" alt="Document View" class="document-preview-image">
+                            </div>
+
+                            <div class="pipeline-chips" id="pipelineChips">
+                                <span class="chip"><i data-lucide="check"></i> Grayscale</span>
+                                <span class="chip"><i data-lucide="check"></i> Gaussian Denoise</span>
+                                <span class="chip"><i data-lucide="check"></i> Otsu Binarization</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Raw Extracted OCR Text -->
+                <div class="card raw-text-card">
+                    <div class="card-header" id="rawTextToggle">
+                        <div class="card-title">
+                            <i data-lucide="align-left"></i>
+                            <h2>Extracted OCR Text Stream</h2>
+                            <span class="text-meta-pill" id="textMetaPill">0 chars &bull; 0 words</span>
+                        </div>
+                        <div class="header-actions">
+                            <button type="button" id="copyRawTextBtn" class="btn btn-sm btn-outline">
+                                <i data-lucide="copy"></i> Copy Raw Text
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <pre id="rawTextContent" class="raw-text-box">No text extracted yet.</pre>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- VIEW 2: PUBLIC VERIFICATION PORTAL                                -->
+        <!-- ================================================================= -->
+        <div id="viewVerify" class="portal-view hidden">
+            <section class="card verify-hero-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i data-lucide="check-check"></i>
+                        <h2>Verify Document Authenticity Against Blockchain</h2>
+                    </div>
+                    <span class="badge badge-success">Instant Cryptographic Audit</span>
+                </div>
+
+                <div class="card-body">
+                    <p class="verify-instructions">
+                        Upload any academic certificate or transcript to verify its authenticity. The system computes its <b>SHA-256 fingerprint</b> and queries the smart contract on the blockchain. If even a single grade, letter, or pixel was altered, the verification will fail.
+                    </p>
+
+                    <!-- Verify Drop Zone -->
+                    <div id="verifyDropZone" class="drop-zone verify-drop-zone">
+                        <input type="file" id="verifyFileInput" accept=".png,.jpg,.jpeg,.webp,.tiff,.bmp" hidden>
+                        <div class="drop-zone-content">
+                            <div class="upload-illustration verify-illustration">
+                                <i data-lucide="shield-search"></i>
+                            </div>
+                            <h3>Upload document to test authenticity</h3>
+                            <p class="drop-hint">Drop your document here or select from computer</p>
+                            <button type="button" id="verifyBrowseBtn" class="btn btn-secondary">
+                                <i data-lucide="folder-open"></i> Browse Credential
+                            </button>
+                        </div>
+
+                        <div id="verifyFilePreviewContainer" class="file-preview-container hidden">
+                            <div class="preview-thumbnail-wrap">
+                                <img id="verifyFilePreviewThumb" src="" alt="Verify Preview">
+                            </div>
+                            <div class="file-details">
+                                <div class="file-meta">
+                                    <span id="verifyPreviewFileName" class="file-name">certificate.png</span>
+                                    <span id="verifyPreviewFileSize" class="file-size">1.2 MB</span>
+                                </div>
+                                <button type="button" id="verifyRemoveFileBtn" class="btn-icon" title="Remove file">
+                                    <i data-lucide="x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-toolbar">
+                        <button type="button" id="btnRunVerification" class="btn btn-primary" disabled>
+                            <i data-lucide="shield-check"></i> Verify Authenticity
+                        </button>
+                        <div class="divider-text">OR</div>
+                        <button type="button" id="btnVerifySample" class="btn btn-outline">
+                            <i data-lucide="sparkles"></i> Verify Sample Certificate
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Verification Results Display -->
+            <section id="verificationResultSection" class="verification-results-section hidden">
+                <!-- Authentic Verdict Banner -->
+                <div id="bannerAuthentic" class="verdict-banner banner-authentic hidden">
+                    <div class="verdict-icon"><i data-lucide="shield-check"></i></div>
+                    <div class="verdict-text-wrap">
+                        <span class="verdict-tag">✓ AUTHENTIC CREDENTIAL</span>
+                        <h3 class="verdict-heading">Document Hash Matches Immutable Blockchain Record</h3>
+                        <p class="verdict-sub">This document has been cryptographically validated. The hash computed from the uploaded file corresponds exactly with the record anchored on the blockchain.</p>
+                    </div>
+                    <div class="verdict-action">
+                        <button type="button" id="btnDownloadReport" class="btn btn-report">
+                            <i data-lucide="file-down"></i> Download Verification Report (PDF)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tampered / Not Found Verdict Banner -->
+                <div id="bannerTampered" class="verdict-banner banner-tampered hidden">
+                    <div class="verdict-icon"><i data-lucide="shield-alert"></i></div>
+                    <div class="verdict-text-wrap">
+                        <span class="verdict-tag">✗ INVALID OR MODIFIED</span>
+                        <h3 class="verdict-heading">No Matching Record Found on Blockchain</h3>
+                        <p class="verdict-sub">This document could not be authenticated. Either it was never issued by an accredited institution, or the contents (grades, name, or metadata) have been altered.</p>
+                    </div>
+                </div>
+
+                <!-- Verification Data Card -->
+                <div class="card audit-details-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i data-lucide="file-badge"></i>
+                            <h2>Cryptographic & Blockchain Audit Proof</h2>
+                        </div>
+                        <div class="badge badge-outline" id="auditStatusBadge">Verified On-Chain</div>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="audit-grid">
+                            <div class="audit-item full-width">
+                                <span class="audit-label">Computed Document SHA-256 Hash</span>
+                                <code id="verifySha256Value" class="audit-code">----------------------------------------------------------------</code>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Registration Timestamp</span>
+                                <span id="auditTimestamp" class="audit-value">-</span>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Blockchain Block Number</span>
+                                <span id="auditBlockNumber" class="audit-value">-</span>
+                            </div>
+
+                            <div class="audit-item full-width">
+                                <span class="audit-label">Transaction Hash / Proof ID</span>
+                                <code id="auditTxHash" class="audit-code">-</code>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Candidate Name</span>
+                                <span id="auditStudentName" class="audit-value">-</span>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Student ID / USN</span>
+                                <span id="auditStudentId" class="audit-value monospace-val">-</span>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Awarding Institution</span>
+                                <span id="auditInstitution" class="audit-value">-</span>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Course / Degree Program</span>
+                                <span id="auditCourse" class="audit-value">-</span>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Verified Marks / Grade</span>
+                                <span id="auditMarks" class="audit-value highlight-val">-</span>
+                            </div>
+
+                            <div class="audit-item">
+                                <span class="audit-label">Authorized Issuer Address</span>
+                                <code id="auditIssuer" class="audit-code-sm">-</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- VIEW 3: AUDIT LEDGER & VERIFICATION HISTORY                       -->
+        <!-- ================================================================= -->
+        <div id="viewHistory" class="portal-view hidden">
+            <section class="card history-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i data-lucide="scroll-text"></i>
+                        <h2>Blockchain Credential Audit Ledger</h2>
+                    </div>
+                    <button type="button" id="btnRefreshHistory" class="btn btn-sm btn-outline">
+                        <i data-lucide="refresh-cw"></i> Refresh History
+                    </button>
+                </div>
+
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="audit-table">
+                            <thead>
+                                <tr>
+                                    <th>Time (UTC)</th>
+                                    <th>Event</th>
+                                    <th>Document</th>
+                                    <th>Candidate</th>
+                                    <th>SHA-256 Fingerprint</th>
+                                    <th>Verdict / Status</th>
+                                    <th>Blockchain Proof</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody">
+                                <tr>
+                                    <td colspan="8" class="empty-table-msg">Loading audit records...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="container footer-container">
+            <p>Academic Document Authenticity Validator &bull; Version 2.0 (OCR + Cryptography + Ethereum Blockchain)</p>
+            <p class="footer-sub">Privacy-First Architecture: Documents remain private; only 32-byte cryptographic hashes are stored on-chain.</p>
+        </div>
+    </footer>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
